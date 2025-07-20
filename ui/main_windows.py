@@ -1,7 +1,7 @@
 # ui/main_windows.py
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QTableWidget,
-    QTableWidgetItem, QPushButton, QHBoxLayout, QSpinBox, QLabel, QGroupBox, QTextEdit
+    QTableWidgetItem, QPushButton, QHBoxLayout, QSpinBox, QLabel, QGroupBox, QTextEdit, QComboBox
 )
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QShortcut, QKeySequence
@@ -17,6 +17,9 @@ from logic.walker_thread import WalkerThread
 
 from components.hud_log_widget import HUDLogWidget
 
+from ui.script_loader import load_script
+from ui.settings_widget import SettingsWidget
+
 
 
 class CavebotHUD(QMainWindow):
@@ -30,8 +33,9 @@ class CavebotHUD(QMainWindow):
         self.walker_thread = None
         self.path = []
         self.recorder = WaypointRecorder()
+        self.character_center = (0, 0)
 
-        self.setWindowTitle("Cavebot HUD - RubinOT")
+        self.setWindowTitle("Cavebot HUD - Oak BOT")
         self.setGeometry(100, 100, 1000, 600)
 
         self.tabs = QTabWidget()
@@ -45,6 +49,9 @@ class CavebotHUD(QMainWindow):
         self.tabs.addTab(QWidget(), "Healing")
         self.tabs.addTab(QWidget(), "Support")
         self.tabs.addTab(self.create_autorecorder_tab(), "AutoRecorder")
+        self.settings_widget = SettingsWidget()
+        self.tabs.addTab(self.settings_widget, "Settings")
+
 
     def keyPressEvent(self, event):
         if self.tabs.currentWidget() == self.tab_cavebot:
@@ -95,15 +102,27 @@ class CavebotHUD(QMainWindow):
         range_box.addWidget(self.range_y)
         side_panel.addLayout(range_box)
 
+        self.direction_combo = QComboBox()
+        self.direction_combo.addItems([
+            "Center", "North", "South", "East", "West",
+            "Northeast", "Northwest", "Southeast", "Southwest"
+        ])
+        side_panel.addWidget(QLabel("Direction:"))
+        side_panel.addWidget(self.direction_combo)
+
         # Botões de waypoint (igual print)
         for label in ["Walk", "Stand", "Door", "Ladder", "Use", "Rope", "Shovel", "Machete", "Other tool", "Action"]:
             btn = QPushButton(label)
-            btn.clicked.connect(lambda _, l=label: self.add_waypoint(l))
+            if label == "Stand":
+                btn.clicked.connect(self.handle_stand)
+            else:
+                btn.clicked.connect(lambda _, l=label: self.add_waypoint(l))
             btn.setFixedHeight(30)
             side_panel.addWidget(btn)
 
-        load_button = QPushButton("Load Caminho JSON")
-        load_button.clicked.connect(self.load_path_to_table)
+        load_button = QPushButton("Load Script")
+        load_button.clicked.connect(lambda: load_script(self, self.wp_table, self.connection_status))
+        load_button.setToolTip("Carrega um script JSON de waypoints.")
         load_button.setFixedHeight(30)
         side_panel.addWidget(load_button)
 
@@ -151,8 +170,14 @@ class CavebotHUD(QMainWindow):
         if self.walker_thread and self.walker_thread.isRunning():
             self.hud_log.append("[HUD] 🚫 Walker já está rodando!")
             return
+        character_center = self.settings_widget.character_center
+        self.walker_thread = WalkerThread(
+        self.path,
+        hud_log=self.hud_log,
+        character_center=character_center
+        )
 
-        self.walker_thread = WalkerThread(self.path)
+        # self.walker_thread = WalkerThread(self.path)
         self.walker_thread.log_signal.connect(self.hud_log.log)
         self.walker_thread.status_signal.connect(self.hud_log.set_status)  # <- Aqui conecta!
         self.walker_thread.start()
@@ -184,14 +209,37 @@ class CavebotHUD(QMainWindow):
             self.hud_log.append("[HUD] Walker não está rodando.")
 
     def add_waypoint(self, wp_type):
+        x, y, z = self.reader.get_position()
+        if None in (x, y, z) or (x, y, z) == (0, 0, 0):
+            self.connection_status.setText("❌ Posição inválida! Verifique a conexão com o cliente.")
+            return
         row = self.wp_table.rowCount()
         self.wp_table.insertRow(row)
         self.wp_table.setItem(row, 0, QTableWidgetItem(str(row + 1)))
-        self.wp_table.setItem(row, 1, QTableWidgetItem(wp_type))
-        self.wp_table.setItem(row, 2, QTableWidgetItem(""))
-        self.wp_table.setItem(row, 3, QTableWidgetItem("x:0, y:0, z:0"))
+        self.wp_table.setItem(row, 1, QTableWidgetItem("Walk"))
+        self.wp_table.setItem(row, 2, QTableWidgetItem(""))  # Sem direção específica para walk
+        self.wp_table.setItem(row, 3, QTableWidgetItem(f"x:{x}, y:{y}, z:{z}"))
         self.wp_table.setItem(row, 4, QTableWidgetItem(f"{self.range_x.value()} x {self.range_y.value()}"))
         self.wp_table.setItem(row, 5, QTableWidgetItem(""))
+        self.connection_status.setText(f"🟢 Waypoint 'Walk' adicionado em x:{x}, y:{y}, z:{z}")
+
+    def handle_stand(self):
+        direction = self.direction_combo.currentText()
+        x, y, z = self.reader.get_position()
+        if None in (x, y, z) or (x, y, z) == (0, 0, 0):
+            self.connection_status.setText("❌ Posição inválida! Verifique a conexão com o cliente.")
+            return
+        row = self.wp_table.rowCount()
+        self.wp_table.insertRow(row)
+        self.wp_table.setItem(row, 0, QTableWidgetItem(str(row + 1)))
+        self.wp_table.setItem(row, 1, QTableWidgetItem("Stand"))
+        self.wp_table.setItem(row, 2, QTableWidgetItem(direction))
+        self.wp_table.setItem(row, 3, QTableWidgetItem(f"x:{x}, y:{y}, z:{z}"))
+        self.wp_table.setItem(row, 4, QTableWidgetItem(f"{self.range_x.value()} x {self.range_y.value()}"))
+        self.wp_table.setItem(row, 5, QTableWidgetItem(""))
+        self.connection_status.setText(f"🟢 Waypoint 'Stand' ({direction}) adicionado em x:{x}, y:{y}, z:{z}")
+
+
 
     def create_autorecorder_tab(self):
         tab = QWidget()
@@ -244,22 +292,22 @@ class CavebotHUD(QMainWindow):
         self.recorder.save_to_file()
         self.connection_status.setText("✅ Caminho salvo.")
 
-    def load_path_to_table(self):
-        try:
-            data = self.waypoint_manager.load_path()
-            self.wp_table.setRowCount(0)
+    # def load_path_to_table(self):
+    #     try:
+    #         data = self.waypoint_manager.load_path()
+    #         self.wp_table.setRowCount(0)
 
-            for idx, coord in enumerate(data):
-                self.wp_table.insertRow(idx)
-                self.wp_table.setItem(idx, 0, QTableWidgetItem(str(idx + 1)))
-                self.wp_table.setItem(idx, 1, QTableWidgetItem("Walk"))
-                self.wp_table.setItem(idx, 2, QTableWidgetItem(""))
-                self.wp_table.setItem(idx, 3, QTableWidgetItem(f"x:{coord['x']}, y:{coord['y']}, z:{coord['z']}"))
-                self.wp_table.setItem(idx, 4, QTableWidgetItem("2 x 2"))
-                self.wp_table.setItem(idx, 5, QTableWidgetItem(""))
-            self.connection_status.setText("✅ Caminho carregado com sucesso.")
-        except Exception as e:
-            self.connection_status.setText(f"❌ Erro ao carregar: {e}")
+    #         for idx, coord in enumerate(data):
+    #             self.wp_table.insertRow(idx)
+    #             self.wp_table.setItem(idx, 0, QTableWidgetItem(str(idx + 1)))
+    #             self.wp_table.setItem(idx, 1, QTableWidgetItem("Walk"))
+    #             self.wp_table.setItem(idx, 2, QTableWidgetItem(""))
+    #             self.wp_table.setItem(idx, 3, QTableWidgetItem(f"x:{coord['x']}, y:{coord['y']}, z:{coord['z']}"))
+    #             self.wp_table.setItem(idx, 4, QTableWidgetItem("2 x 2"))
+    #             self.wp_table.setItem(idx, 5, QTableWidgetItem(""))
+    #         self.connection_status.setText("✅ Caminho carregado com sucesso.")
+    #     except Exception as e:
+    #         self.connection_status.setText(f"❌ Erro ao carregar: {e}")
 
     def start_path_execution(self):
         row_count = self.wp_table.rowCount()
@@ -311,6 +359,51 @@ class CavebotHUD(QMainWindow):
         for row in sorted(rows, reverse=True):
             self.wp_table.removeRow(row)
         self.connection_status.setText("🗑️ Waypoint(s) deletado(s).")
+
+    def create_settings_tab(self):
+        tab = QWidget()
+        layout = QVBoxLayout()
+
+        # Botão para setar o centro do personagem
+        self.set_character_button = QPushButton("Set Character (Clique onde está seu personagem)")
+        self.set_character_button.clicked.connect(self.set_character_center)
+        layout.addWidget(self.set_character_button)
+
+        # Label para mostrar coordenada
+        self.center_label = QLabel("Centro do personagem: Não definido")
+        layout.addWidget(self.center_label)
+
+        # Botão load/save configs
+        buttons = QHBoxLayout()
+        self.load_settings_button = QPushButton("Load Config")
+        self.save_settings_button = QPushButton("Save Config")
+        self.load_settings_button.clicked.connect(self.load_screen_settings)
+        self.save_settings_button.clicked.connect(self.save_screen_settings)
+        buttons.addWidget(self.load_settings_button)
+        buttons.addWidget(self.save_settings_button)
+        layout.addLayout(buttons)
+
+        tab.setLayout(layout)
+        return tab
+    
+    
+
+    def save_screen_settings(self):
+        data = {'character_center': self.character_center}
+        with open("screen_settings.json", "w") as f:
+            json.dump(data, f)
+        self.center_label.setText(f"Configuração salva! {self.character_center}")
+
+    def load_screen_settings(self):
+        if os.path.exists("screen_settings.json"):
+            with open("screen_settings.json", "r") as f:
+                data = json.load(f)
+            self.character_center = tuple(data.get('character_center', (0,0)))
+            self.center_label.setText(f"Configuração carregada: {self.character_center}")
+        else:
+            self.center_label.setText("Nenhuma configuração encontrada.")
+
+
 
 
 

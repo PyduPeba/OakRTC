@@ -32,3 +32,35 @@ def send_arrow_key(direction: str):
     win32api.PostMessage(game_hwnd, win32con.WM_KEYDOWN, rParam, lParam)
     time.sleep(0.05)
     win32api.PostMessage(game_hwnd, win32con.WM_KEYUP, rParam, lParam)
+
+def hold_arrow_key(direction: str):
+    import core.Addresses as Addresses
+    game_hwnd = Addresses.game
+
+    if not game_hwnd:
+        print("[input_sender] ERRO: game HWND não definido.")
+        return
+
+    if direction not in KEYBOARD_MAP:
+        print(f"[input_sender] Direção inválida: {direction}")
+        return
+
+    rParam, lParam = KEYBOARD_MAP[direction]
+    print(f"[input_sender] ⏸️ Segurando tecla '{direction.upper()}'")
+    win32api.PostMessage(game_hwnd, win32con.WM_KEYDOWN, rParam, lParam)
+
+def release_arrow_key(direction: str):
+    import core.Addresses as Addresses
+    game_hwnd = Addresses.game
+
+    if not game_hwnd:
+        print("[input_sender] ERRO: game HWND não definido.")
+        return
+
+    if direction not in KEYBOARD_MAP:
+        print(f"[input_sender] Direção inválida: {direction}")
+        return
+
+    rParam, lParam = KEYBOARD_MAP[direction]
+    print(f"[input_sender] ⏹️ Soltando tecla '{direction.upper()}'")
+    win32api.PostMessage(game_hwnd, win32con.WM_KEYUP, rParam, lParam)
