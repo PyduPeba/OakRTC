@@ -14,11 +14,14 @@ from PyQt6.QtCore import Qt
 
 
 class WalkerThread(QThread):
+    log_signal = pyqtSignal(str)
+    status_signal = pyqtSignal(str)
     index_update = pyqtSignal(int, object)
 
-    def __init__(self, waypoints):
+    def __init__(self, waypoints, hud_log=None):
         super().__init__()
         self.waypoints = waypoints
+        self.hud_log = hud_log
         self.running = True
 
     def run(self):
@@ -27,13 +30,17 @@ class WalkerThread(QThread):
         try:
             reader.load_client()
         except Exception as e:
-            print(f"[ERRO] Falha ao carregar cliente: {e}")
+            msg = f"[ERRO] Falha ao carregar cliente: {e}"
+            if self.hud_log:
+                self.hud_log.log(msg)
+            print(msg)
             return
 
         current_wpt = 0
         timer, timer2 = 0, 0
         old_x, old_y = 0, 0
 
+        self.status_signal.emit("Andando")
         while self.running:
             try:
                 if timer2 >= 1:
@@ -47,7 +54,8 @@ class WalkerThread(QThread):
                     x, y, z = read_my_wpt()
 
                 if (x, y, z) == (wpt['X'], wpt['Y'], wpt['Z']) and wpt['Action'] == 0:
-                    print(f"[Walker] ✅ Já está na posição {x, y, z}")
+                    self.log_signal.emit(f"[Walker] ✅ Já está na posição {x, y, z}")
+                    self.status_signal.emit("Parado")
                     timer = 0
                     current_wpt = (current_wpt + 1) % len(self.waypoints)
                     continue
@@ -62,14 +70,17 @@ class WalkerThread(QThread):
                     if wpt['Action'] == 0:
                         if wpt['Direction'] == 9:
                             direction = get_direction(x, y, wpt['X'], wpt['Y'])
-                            print(f"[Walker] 🚶 Caminhando (modo inteligente). Direção calculada: {direction}")
+                            self.status_signal.emit("Andando")
+                            self.log_signal.emit(f"[Walker] 🚶 Caminhando (modo inteligente). Direção calculada: {direction}")
                             walk(direction)
                         else:
-                            print(f"[Walker] 🚶 Caminhando... direção fixa: {wpt['Direction']}")
+                            self.log_signal.emit(f"[Walker] 🚶 Caminhando... direção fixa: {wpt['Direction']}")
+                        
                             walk(wpt['Direction'])
 
                     elif wpt['Action'] == 1:
-                        print("[Walker] 🪜 Rope action")
+                        self.log_signal.emit(f"[Walker] 🪜 Rope action")
+                        
                         QThread.msleep(random.randint(500, 600))
                         mouse_function(coordinates_x[10], coordinates_y[10], option=1)
                         QThread.msleep(random.randint(100, 200))
@@ -79,7 +90,8 @@ class WalkerThread(QThread):
                         current_wpt = (current_wpt + 1) % len(self.waypoints)
 
                     elif wpt['Action'] == 2:
-                        print("[Walker] ⛏️ Shovel action")
+                        self.log_signal.emit(f"[Walker] ⛏️ Shovel action")
+                        
                         QThread.msleep(random.randint(500, 600))
                         mouse_function(coordinates_x[9], coordinates_y[9], option=1)
                         QThread.msleep(random.randint(100, 200))
@@ -89,18 +101,22 @@ class WalkerThread(QThread):
                         current_wpt = (current_wpt + 1) % len(self.waypoints)
 
                     elif wpt['Action'] == 3:
-                        print("[Walker] 🪜 Ladder action")
+                        self.log_signal.emit(f"[Walker] 🪜 Ladder action")
+                        
                         QThread.msleep(random.randint(500, 600))
                         mouse_function(coordinates_x[0], coordinates_y[0], option=1)
                         current_wpt = (current_wpt + 1) % len(self.waypoints)
 
                     elif wpt['Action'] == 4:
-                        print("[Walker] ⚙️ Custom Action")
+                        self.log_signal.emit(f"[Walker] ⚙️ Custom Action")
+                        self.status_signal.emit("Executando ação...")
+                        
                         command = wpt['Direction'].split(' ')
                         handle_action(command)
 
                 if timer > 5000:
-                    print("[Walker] ❌ Perdeu o caminho. Tentando recuperar...")
+                    self.log_signal.emit(f"[Walker] ❌ Perdeu o caminho. Tentando recuperar...")
+                    
                     current_wpt = self.lost_wpt(current_wpt)
                     timer = 0
 
@@ -109,10 +125,12 @@ class WalkerThread(QThread):
                 if not walker_Lock.locked():
                     timer += sleep_value
             except Exception as e:
-                print(f"[Walker] ❌ Erro na thread: {e}")
+                self.log_signal.emit(f"[Walker] ❌ Erro na thread: {e}")
+                
 
     def stop(self):
-        print("[Walker] ⛔ Parando thread do walker...")
+        self.log_signal.emit(f"[Walker] ⛔ Parando thread do walker...")
+        self.status_signal.emit("Parado")
         self.running = False
 
     def find_wpt(self, index):
@@ -159,3 +177,5 @@ def handle_action(command) -> None:
 
         if command[i] == 'wait':
             QThread.msleep(int(command[i + 1]))
+
+

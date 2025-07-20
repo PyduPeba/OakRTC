@@ -1,9 +1,10 @@
 # ui/main_windows.py
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QTableWidget,
-    QTableWidgetItem, QPushButton, QHBoxLayout, QSpinBox, QLabel, QGroupBox
+    QTableWidgetItem, QPushButton, QHBoxLayout, QSpinBox, QLabel, QGroupBox, QTextEdit
 )
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtGui import QShortcut, QKeySequence
 import sys, json, os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -14,6 +15,8 @@ from core.waypoint_recorder import WaypointRecorder
 from core.walker import walk_to
 from logic.walker_thread import WalkerThread
 
+from components.hud_log_widget import HUDLogWidget
+
 
 
 class CavebotHUD(QMainWindow):
@@ -21,8 +24,11 @@ class CavebotHUD(QMainWindow):
         super().__init__()
         self.reader = MemoryReader()
         self.reader.load_client()
+        self.hud_log = QTextEdit()  # seu widget de HUD de logs
+        self.hud_log.setReadOnly(True)
         self.waypoint_manager = WaypointManager()
         self.walker_thread = None
+        self.path = []
         self.recorder = WaypointRecorder()
 
         self.setWindowTitle("Cavebot HUD - RubinOT")
@@ -31,12 +37,20 @@ class CavebotHUD(QMainWindow):
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
 
-        self.tabs.addTab(self.create_cavebot_tab(), "Cavebot")
+        self.hud_log = HUDLogWidget()
+        self.tab_cavebot = self.create_cavebot_tab()
+        self.tabs.addTab(self.tab_cavebot, "Cavebot")
         self.tabs.addTab(QWidget(), "Targeting")
         self.tabs.addTab(QWidget(), "Looting")
         self.tabs.addTab(QWidget(), "Healing")
         self.tabs.addTab(QWidget(), "Support")
         self.tabs.addTab(self.create_autorecorder_tab(), "AutoRecorder")
+
+    def keyPressEvent(self, event):
+        if self.tabs.currentWidget() == self.tab_cavebot:
+            if event.key() == Qt.Key.Key_Delete:
+                self.delete_selected_waypoint()
+        super().keyPressEvent(event)
 
     def try_connect(self):
         try:
@@ -47,97 +61,127 @@ class CavebotHUD(QMainWindow):
 
     def create_cavebot_tab(self):
         tab = QWidget()
-        layout = QHBoxLayout()
+        main_layout = QHBoxLayout(tab)
 
+        # Tabela central
         self.wp_table = QTableWidget()
+        self.wp_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.wp_table.setSelectionMode(QTableWidget.SelectionMode.MultiSelection)
         self.wp_table.setColumnCount(6)
         self.wp_table.setHorizontalHeaderLabels(["WP", "Type", "Label", "Coordinates", "Range", "Action"])
         self.wp_table.setRowCount(0)
+        self.wp_table.setMinimumWidth(500)
+        main_layout.addWidget(self.wp_table, 3)
 
         connection_panel = QVBoxLayout()
         self.connection_status = QLabel("🔴 Cliente não conectado.")
         self.connect_button = QPushButton("Conectar")
         self.connect_button.clicked.connect(self.try_connect)
-
         connection_panel.addWidget(self.connection_status)
         connection_panel.addWidget(self.connect_button)
-        layout.addLayout(connection_panel)
+        main_layout.addLayout(connection_panel)
 
-        layout.addWidget(self.wp_table)
+        main_layout.addWidget(self.wp_table)
 
+        # Painel lateral direito (Botões + Range)
         side_panel = QVBoxLayout()
+        # Range
+        range_box = QHBoxLayout()
+        self.range_x = QSpinBox()
+        self.range_y = QSpinBox()
+        range_box.addWidget(QLabel("Range:"))
+        range_box.addWidget(self.range_x)
+        range_box.addWidget(QLabel("x"))
+        range_box.addWidget(self.range_y)
+        side_panel.addLayout(range_box)
 
-        range_group = QGroupBox("Range:")
-        range_layout = QHBoxLayout()
-        self.range_x = QSpinBox(); self.range_x.setValue(2)
-        self.range_y = QSpinBox(); self.range_y.setValue(2)
-        range_layout.addWidget(QLabel("X:"))
-        range_layout.addWidget(self.range_x)
-        range_layout.addWidget(QLabel("Y:"))
-        range_layout.addWidget(self.range_y)
-        range_group.setLayout(range_layout)
-        side_panel.addWidget(range_group)
-
-        buttons = ["Walk", "Stand", "Door", "Ladder", "Use", "Rope"]
-        for btn in buttons:
-            b = QPushButton(btn)
-            b.clicked.connect(lambda _, x=btn: self.add_waypoint(x))
-            side_panel.addWidget(b)
+        # Botões de waypoint (igual print)
+        for label in ["Walk", "Stand", "Door", "Ladder", "Use", "Rope", "Shovel", "Machete", "Other tool", "Action"]:
+            btn = QPushButton(label)
+            btn.clicked.connect(lambda _, l=label: self.add_waypoint(l))
+            btn.setFixedHeight(30)
+            side_panel.addWidget(btn)
 
         load_button = QPushButton("Load Caminho JSON")
         load_button.clicked.connect(self.load_path_to_table)
+        load_button.setFixedHeight(30)
         side_panel.addWidget(load_button)
 
+        # Botões especiais: Show HUD, Start/Stop
+        self.btn_show_hud = QPushButton("Show HUD")
+        self.btn_show_hud.setFixedHeight(30)
+        self.btn_show_hud.clicked.connect(self.hud_log.show)
+        side_panel.addWidget(self.btn_show_hud)
         start_walker_button = QPushButton("▶️ Start Walker")
         stop_walker_button = QPushButton("⏹️ Stop Walker")
+        start_walker_button.setFixedHeight(30)
+        stop_walker_button.setFixedHeight(30)
         start_walker_button.clicked.connect(self.start_walker)
         stop_walker_button.clicked.connect(self.stop_walker)
         side_panel.addWidget(start_walker_button)
         side_panel.addWidget(stop_walker_button)
+        self.btn_delete_wpt = QPushButton("🗑️ Deletar Waypoint")
+        self.btn_delete_wpt.setFixedHeight(30)
+        self.btn_delete_wpt.clicked.connect(self.delete_selected_waypoint)
+        side_panel.addWidget(self.btn_delete_wpt)
 
-        layout.addLayout(side_panel)
-        tab.setLayout(layout)
+        # Painel botões do HUD
+        side_panel_widget = QWidget()
+        side_panel_widget.setLayout(side_panel)
+        side_panel_widget.setMaximumWidth(220)  # Ou ajuste para o valor desejado
+        side_panel_widget.setMinimumWidth(180)  # Evita que fique muito fino
+
+        main_layout.addWidget(side_panel_widget)
+
+
+        # main_layout.addLayout(side_panel, 1)
+
+        self.hud_log.hide()
         return tab
     
+    # Método para logar do walker para HUD
+    def walker_log(self, message):
+        self.hud_log.append(message)
+    
     def start_walker(self):
-        try:
-            # Garante que o processo está carregado antes de iniciar o Walker
-            self.reader.load_client()
-        except Exception as e:
-            self.connection_status.setText(f"❌ Falha ao conectar antes do walker: {e}")
+        # Aqui você gera ou lê os waypoints da tabela
+        self.path = self.collect_waypoints_from_table()  # Implemente conforme seu projeto!
+
+        # Antes de criar nova thread, pare a anterior se necessário
+        if self.walker_thread and self.walker_thread.isRunning():
+            self.hud_log.append("[HUD] 🚫 Walker já está rodando!")
             return
 
-        # Gerar path antes de iniciar o walker
-        self.path = []
+        self.walker_thread = WalkerThread(self.path)
+        self.walker_thread.log_signal.connect(self.hud_log.log)
+        self.walker_thread.status_signal.connect(self.hud_log.set_status)  # <- Aqui conecta!
+        self.walker_thread.start()
+        self.hud_log.log("[HUD] 🚶 Walker iniciado.")
+
+    def collect_waypoints_from_table(self):
+        # Aqui você extrai os dados da tabela e retorna uma lista de dicts [{X:...,Y:...,Z:...,Action:...,Direction:...}, ...]
+        waypoints = []
         row_count = self.wp_table.rowCount()
         for i in range(row_count):
             item = self.wp_table.item(i, 3)
             if item:
                 coords = item.text().replace("x:", "").replace("y:", "").replace("z:", "").replace(" ", "")
                 x, y, z = map(int, coords.split(","))
-                self.path.append({
+                waypoints.append({
                     "X": x,
                     "Y": y,
                     "Z": z,
                     "Action": 0,
-                    "Direction": 9  # ou 0 se preferir sempre andar
+                    "Direction": 9
                 })
-
-        if self.walker_thread and self.walker_thread.isRunning():
-            self.connection_status.setText("🚫 Walker já está rodando.")
-            return
-
-        self.walker_thread = WalkerThread(self.path)
-        self.walker_thread.start()
-        self.connection_status.setText("🚶 Walker iniciado.")
+        return waypoints
 
     def stop_walker(self):
         if self.walker_thread and self.walker_thread.isRunning():
-            self.walker_thread.stop()  # Método customizado na thread
-            self.walker_thread.wait()  # Aguarda o término seguro
-            self.connection_status.setText("⛔ Walker parado.")
+            self.walker_thread.stop()
+            self.hud_log.append("[HUD] 🛑 Walker parado.")
         else:
-            self.connection_status.setText("ℹ️ Walker já está parado.")
+            self.hud_log.append("[HUD] Walker não está rodando.")
 
     def add_waypoint(self, wp_type):
         row = self.wp_table.rowCount()
@@ -252,6 +296,22 @@ class CavebotHUD(QMainWindow):
         self.connection_status.setText(f"➡️ Indo para: x:{target_x}, y:{target_y}, z:{target_z}")
         walk_to(target_x, target_y, target_z, show_status=self.connection_status.setText)
         self.current_step += 1
+
+    def delete_selected_waypoint(self):
+        selected = self.wp_table.selectedItems()
+        if not selected:
+            self.connection_status.setText("⚠️ Selecione um waypoint para deletar.")
+            return
+
+        # Pega a linha do primeiro item selecionado (só funciona para seleção única ou múltipla simples)
+        rows = set()
+        for item in selected:
+            rows.add(item.row())
+        # Remove da maior para menor, para não dar problema nos índices
+        for row in sorted(rows, reverse=True):
+            self.wp_table.removeRow(row)
+        self.connection_status.setText("🗑️ Waypoint(s) deletado(s).")
+
 
 
 def main():
