@@ -1,0 +1,86 @@
+[
+    {
+        "WP": 1,
+        "Type": "Walk",
+        "Label": "",
+        "X": 32659,
+        "Y": 31907,
+        "Z": 8,
+        "RangeX": 0,
+        "RangeY": 0,
+        "Action": 0,
+        "Direction": 0
+    },
+    {
+        "WP": 2,
+        "Type": "Walk",
+        "Label": "",
+        "X": 32661,
+        "Y": 31911,
+        "Z": 8,
+        "RangeX": 0,
+        "RangeY": 0,
+        "Action": 0,
+        "Direction": 0
+    },
+    {
+        "WP": 3,
+        "Type": "Walk",
+        "Label": "",
+        "X": 32656,
+        "Y": 31913,
+        "Z": 8,
+        "RangeX": 0,
+        "RangeY": 0,
+        "Action": 0,
+        "Direction": 0
+    },
+    {
+        "WP": 4,
+        "Type": "Walk",
+        "Label": "",
+        "X": 32651,
+        "Y": 31910,
+        "Z": 8,
+        "RangeX": 0,
+        "RangeY": 0,
+        "Action": 0,
+        "Direction": 0
+    },
+    {
+        "WP": 5,
+        "Type": "Walk",
+        "Label": "",
+        "X": 32654,
+        "Y": 31905,
+        "Z": 8,
+        "RangeX": 0,
+        "RangeY": 0,
+        "Action": 0,
+        "Direction": 0
+    },
+    {
+        "WP": 6,
+        "Type": "Walk",
+        "Label": "",
+        "X": 32659,
+        "Y": 31903,
+        "Z": 8,
+        "RangeX": 0,
+        "RangeY": 0,
+        "Action": 0,
+        "Direction": 0
+    },
+    {
+        "WP": 7,
+        "Type": "Walk",
+        "Label": "",
+        "X": 32660,
+        "Y": 31907,
+        "Z": 8,
+        "RangeX": 0,
+        "RangeY": 0,
+        "Action": 0,
+        "Direction": 0
+    }
+]

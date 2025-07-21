@@ -1,0 +1,65 @@
+[
+    {
+        "x": 32662,
+        "y": 31910,
+        "z": 8,
+        "type": "Walk",
+        "label": "",
+        "range": "0 x 0",
+        "action": ""
+    },
+    {
+        "x": 32662,
+        "y": 31910,
+        "z": 8,
+        "type": "Walk",
+        "label": "",
+        "range": "0 x 0",
+        "action": ""
+    },
+    {
+        "x": 32662,
+        "y": 31910,
+        "z": 8,
+        "type": "Walk",
+        "label": "",
+        "range": "0 x 0",
+        "action": ""
+    },
+    {
+        "x": 32662,
+        "y": 31910,
+        "z": 8,
+        "type": "Walk",
+        "label": "",
+        "range": "0 x 0",
+        "action": ""
+    },
+    {
+        "x": 32662,
+        "y": 31910,
+        "z": 8,
+        "type": "Stand",
+        "label": "Center",
+        "range": "0 x 0",
+        "action": ""
+    },
+    {
+        "x": 32662,
+        "y": 31910,
+        "z": 8,
+        "type": "Stand",
+        "label": "Center",
+        "range": "0 x 0",
+        "action": ""
+    },
+    {
+        "x": 32662,
+        "y": 31910,
+        "z": 8,
+        "type": "Stand",
+        "label": "Northeast",
+        "range": "0 x 0",
+        "action": ""
+    }
+]

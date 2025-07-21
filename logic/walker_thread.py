@@ -53,15 +53,23 @@ class WalkerThread(QThread):
 
                 self.index_update.emit(0, current_wpt)
                 wpt = self.waypoints[current_wpt]
+                if current_wpt > 0:
+                    prev = self.waypoints[current_wpt - 1]
+                    if (prev['X'], prev['Y'], prev['Z']) == (wpt['X'], wpt['Y'], wpt['Z']):
+                        self.log_signal.emit("[Walker] ⚠️ Waypoint repetido, pulando.")
+                        current_wpt = (current_wpt + 1) % len(self.waypoints)
+                        continue
                 x, y, z = read_my_wpt()
                 while (x or y or z) is None:
                     x, y, z = read_my_wpt()
 
-                if (x, y, z) == (wpt['X'], wpt['Y'], wpt['Z']) and wpt['Action'] == 0:
+                # if (x, y, z) == (wpt['X'], wpt['Y'], wpt['Z']) and wpt['Action'] == 0:
+                if self.reached_wpt(x, y, z, wpt):
                     self.log_signal.emit(f"[Walker] ✅ Já está na posição {x, y, z}")
                     self.status_signal.emit("Parado")
-                    timer = 0
+                    
                     current_wpt = (current_wpt + 1) % len(self.waypoints)
+                    timer = 0
                     continue
 
                 if not walker_Lock.locked() or wpt['Direction'] == 9:
@@ -213,15 +221,22 @@ class WalkerThread(QThread):
     
     def intelligent_fallback(self, reader, initial_pos, wpt):
         directions_attempted = set()
-        max_attempts = 20
+        max_attempts = 10
         timeout = 0.3
 
         for _ in range(max_attempts):
             curr_x, curr_y, _ = reader.get_position()
+
+            # Sempre tenta a direção correta primeiro
             direction_index = get_direction(curr_x, curr_y, wpt['X'], wpt['Y'])
 
             if direction_index in directions_attempted or direction_index is None:
-                direction_index = random.randint(1, 9)
+                # Seleciona direção ainda não testada aleatoriamente
+                remaining = [i for i in range(1, 10) if i not in directions_attempted]
+                if not remaining:
+                    break
+                direction_index = random.choice(remaining)
+
             directions_attempted.add(direction_index)
 
             direction_str = DIRECTION_MAP.get(direction_index)
@@ -236,11 +251,11 @@ class WalkerThread(QThread):
             new_x, new_y, _ = reader.get_position()
             if (new_x, new_y) != (curr_x, curr_y):
                 self.log_signal.emit("[Walker] ✅ Fallback avançado funcionou.")
+                # Evita recursão em smart_walk
                 return True
 
         self.log_signal.emit("[Walker] ❌ Fallback avançado falhou.")
         return False
-
     
     def calculate_screen_position(self, current_pos, target_pos, char_center):
         tile_size = 32  # ajuste conforme o seu cliente (geralmente entre 32 e 64 pixels por tile)
@@ -252,6 +267,13 @@ class WalkerThread(QThread):
         screen_y = char_center[1] + (dy * tile_size)
 
         return screen_x, screen_y
+    
+    def reached_wpt(self, current_x, current_y, current_z, wpt):
+        return (
+            abs(current_x - wpt['X']) <= 1 and
+            abs(current_y - wpt['Y']) <= 1 and
+            current_z == wpt['Z']
+        )
 
 def handle_action(command) -> None:
     for i in range(0, len(command)):

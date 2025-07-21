@@ -1,7 +1,7 @@
 # ui/main_windows.py
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QTableWidget,
-    QTableWidgetItem, QPushButton, QHBoxLayout, QSpinBox, QLabel, QGroupBox, QTextEdit, QComboBox
+    QTableWidgetItem, QPushButton, QHBoxLayout, QSpinBox, QLabel, QGroupBox, QTextEdit, QComboBox, QFileDialog
 )
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QShortcut, QKeySequence
@@ -19,6 +19,7 @@ from components.hud_log_widget import HUDLogWidget
 
 from ui.script_loader import load_script
 from ui.settings_widget import SettingsWidget
+from ui.auto_recorder_widget import AutoRecorderWidget
 
 
 
@@ -48,7 +49,8 @@ class CavebotHUD(QMainWindow):
         self.tabs.addTab(QWidget(), "Looting")
         self.tabs.addTab(QWidget(), "Healing")
         self.tabs.addTab(QWidget(), "Support")
-        self.tabs.addTab(self.create_autorecorder_tab(), "AutoRecorder")
+        self.auto_recorder_tab = AutoRecorderWidget()
+        self.tabs.addTab(self.auto_recorder_tab, "AutoRecorder")
         self.settings_widget = SettingsWidget()
         self.tabs.addTab(self.settings_widget, "Settings")
 
@@ -125,6 +127,12 @@ class CavebotHUD(QMainWindow):
         load_button.setToolTip("Carrega um script JSON de waypoints.")
         load_button.setFixedHeight(30)
         side_panel.addWidget(load_button)
+
+        save_button = QPushButton("Save Script")
+        save_button.setFixedHeight(30)
+        save_button.clicked.connect(self.save_script)
+        side_panel.addWidget(save_button)
+
 
         # Botões especiais: Show HUD, Start/Stop
         self.btn_show_hud = QPushButton("Show HUD")
@@ -241,56 +249,50 @@ class CavebotHUD(QMainWindow):
 
 
 
-    def create_autorecorder_tab(self):
-        tab = QWidget()
-        layout = QVBoxLayout()
 
-        self.position_label = QLabel("Posição atual: x:0 y:0 z:0")
-        layout.addWidget(self.position_label)
+    def save_script(self):
+        path = []
+        for i in range(self.wp_table.rowCount()):
+            coord_item = self.wp_table.item(i, 3)
+            if coord_item:
+                try:
+                    coords = coord_item.text().replace("x:", "").replace("y:", "").replace("z:", "").replace(" ", "")
+                    x, y, z = map(int, coords.split(","))
 
-        self.start_record_button = QPushButton("Iniciar Gravação")
-        self.stop_record_button = QPushButton("Parar Gravação")
-        self.save_record_button = QPushButton("Salvar Caminho")
+                    item = self.wp_table.item(i, 1)
+                    item_type = item.text() if item is not None else "Walk"
 
-        layout.addWidget(self.start_record_button)
-        layout.addWidget(self.stop_record_button)
-        layout.addWidget(self.save_record_button)
+                    item = self.wp_table.item(i, 2)
+                    label = item.text() if item is not None else ""
 
-        self.start_record_button.clicked.connect(self.start_recording)
-        self.stop_record_button.clicked.connect(self.stop_recording)
-        self.save_record_button.clicked.connect(self.save_path_to_json)
+                    item = self.wp_table.item(i, 4)
+                    range_val = item.text() if item is not None else "0 x 0"
 
-        self.position_timer = QTimer()
-        self.position_timer.timeout.connect(self.update_position_label)
-        self.position_timer.start(1000)
+                    item = self.wp_table.item(i, 5)
+                    action = item.text() if item is not None else ""
 
-        tab.setLayout(layout)
-        return tab
 
-    def update_position_label(self):
-        try:
-            x, y, z = self.reader.get_position()
-            if None in (x, y, z):
-                raise ValueError("Posição inválida.")
-            self.position_label.setText(f"Posição atual: x:{x} y:{y} z:{z}")
-            self.recorder.record_position(x, y, z)
-        except Exception as e:
-            self.position_label.setText(f"Erro ao ler posição: {e}")
+                    path.append({
+                        "x": x,
+                        "y": y,
+                        "z": z,
+                        "type": item_type,
+                        "label": label,
+                        "range": range_val,
+                        "action": action
+                    })
+                except Exception as e:
+                    print(f"Erro ao ler linha {i}: {e}")
 
-    def start_recording(self):
-        self.recorder.start()
-        self.connection_status.setText("🟢 Gravando caminho...")
-
-    def stop_recording(self):
-        self.recorder.stop()
-        self.connection_status.setText("🟡 Gravação parada.")
-
-    def save_path_to_json(self):
-        if not self.recorder.get_path():
-            self.connection_status.setText("⚠️ Nenhum caminho gravado.")
+        if not path:
+            self.connection_status.setText("⚠️ Nenhum waypoint para salvar.")
             return
-        self.recorder.save_to_file()
-        self.connection_status.setText("✅ Caminho salvo.")
+
+        filename, _ = QFileDialog.getSaveFileName(self, "Salvar Script", "", "JSON Files (*.json)")
+        if filename:
+            with open(filename, "w", encoding="utf-8") as f:
+                json.dump(path, f, indent=4)
+            self.connection_status.setText("✅ Script salvo com sucesso.")
 
     # def load_path_to_table(self):
     #     try:
