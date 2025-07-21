@@ -29,6 +29,7 @@ class WalkerThread(QThread):
         self.character_center = character_center
 
     def run(self):
+        from core.action_executor import handle_action
         from core.memory_reader import MemoryReader
         reader = MemoryReader()
         try:
@@ -124,11 +125,12 @@ class WalkerThread(QThread):
                         current_wpt = (current_wpt + 1) % len(self.waypoints)
 
                     elif wpt['Action'] == 4:
-                        self.log_signal.emit(f"[Walker] ⚙️ Custom Action")
-                        self.status_signal.emit("Executando ação...")
-                        
-                        command = wpt['Direction'].split(' ')
-                        handle_action(command)
+                        self.log_signal.emit(f"[Walker] ⚙️ Executando Script: {wpt['Direction']}")
+                        try:
+                            commands = [x.strip() for x in wpt['Direction'].split(';') if x.strip()]
+                            handle_action(commands)
+                        except Exception as e:
+                            self.log_signal.emit(f"[Ação] ❌ Erro: {e}")
 
                 if timer > 5000:
                     self.log_signal.emit(f"[Walker] ❌ Perdeu o caminho. Tentando recuperar...")

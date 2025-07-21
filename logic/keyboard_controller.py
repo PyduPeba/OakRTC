@@ -3,6 +3,7 @@ import win32api
 import win32con
 from core.input_sender import send_arrow_key
 from core.Addresses import game  # janela do cliente RubinOT
+import time
 
 # Mapeamento completo e correto
 DIRECTION_MAP = {
@@ -72,3 +73,15 @@ def get_direction(curr_x, curr_y, target_x, target_y):
         return 3  # down-right
 
     return None
+
+def send_text(text: str):
+    for char in text:
+        win32api.PostMessage(game, win32con.WM_CHAR, ord(char), 0)
+    scan_code = win32api.MapVirtualKey(win32con.VK_RETURN, 0)
+    lParam_down = 1 | (scan_code << 16)
+    lParam_up = lParam_down | (1 << 30) | (1 << 31)
+    win32api.PostMessage(game, win32con.WM_KEYDOWN, win32con.VK_RETURN, lParam_down)
+    win32api.PostMessage(game, win32con.WM_KEYUP, win32con.VK_RETURN, lParam_up)
+    time.sleep(0.1)
+
+__all__ = ['walk', 'hold_key', 'release_all_keys', 'get_direction', 'send_text']

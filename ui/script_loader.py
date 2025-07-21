@@ -22,6 +22,8 @@ def load_script(parent, wp_table, connection_status):
             wp_table.setItem(idx, 3, QTableWidgetItem(f"x:{coord['X']}, y:{coord['Y']}, z:{coord['Z']}"))
             wp_table.setItem(idx, 4, QTableWidgetItem(f"{coord.get('RangeX', 0)} x {coord.get('RangeY', 0)}"))
             wp_table.setItem(idx, 5, QTableWidgetItem(str(coord.get("Action", ""))))
+            if coord.get("Type", "").lower() == "action" and "script" in coord:
+                parent.script_textedit.setPlainText(coord["script"])
 
         connection_status.setText("✅ Script carregado com sucesso.")
     except Exception as e:

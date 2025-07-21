@@ -13,6 +13,7 @@ from core.memory_utils import read_my_wpt
 from logic.waypoint_manager import WaypointManager
 from core.waypoint_recorder import WaypointRecorder
 from core.walker import walk_to
+from core.action_executor import handle_action
 from logic.walker_thread import WalkerThread
 
 from components.hud_log_widget import HUDLogWidget
@@ -71,6 +72,22 @@ class CavebotHUD(QMainWindow):
     def create_cavebot_tab(self):
         tab = QWidget()
         main_layout = QHBoxLayout(tab)
+
+        #Editor Basico
+        self.script_editor_group = QGroupBox("Editor de Script")
+        self.script_editor_layout = QVBoxLayout()
+
+        self.script_label = QLabel("Digite seu script:")
+        self.script_textedit = QTextEdit()
+        self.script_textedit.setPlaceholderText(
+            "Exemplo:\nif $posz == 8 then\n  say 'hi'\n  wait 1000\n  say 'trade'\nend"
+        )
+
+        self.script_editor_layout.addWidget(self.script_label)
+        self.script_editor_layout.addWidget(self.script_textedit)
+        self.script_editor_group.setLayout(self.script_editor_layout)
+
+        main_layout.addWidget(self.script_editor_group)
 
         # Tabela central
         self.wp_table = QTableWidget()
@@ -132,6 +149,11 @@ class CavebotHUD(QMainWindow):
         save_button.setFixedHeight(30)
         save_button.clicked.connect(self.save_script)
         side_panel.addWidget(save_button)
+
+        self.btn_test_script = QPushButton("▶️ Testar Script")
+        self.btn_test_script.setFixedHeight(30)
+        self.script_editor_layout.addWidget(self.btn_test_script)
+        self.btn_test_script.clicked.connect(self.testar_script_manual)
 
 
         # Botões especiais: Show HUD, Start/Stop
@@ -231,6 +253,20 @@ class CavebotHUD(QMainWindow):
         self.wp_table.setItem(row, 5, QTableWidgetItem(""))
         self.connection_status.setText(f"🟢 Waypoint 'Walk' adicionado em x:{x}, y:{y}, z:{z}")
 
+    def testar_script_manual(self):
+        script = self.script_textedit.toPlainText().strip()
+        if not script:
+            self.connection_status.setText("❌ Nenhum script para testar.")
+            return
+        try:
+            reader = MemoryReader()
+            reader.load_client()
+            handle_action(script.splitlines(), reader=reader)
+            self.connection_status.setText("✅ Script executado.")
+        except Exception as e:
+            self.connection_status.setText(f"❌ Erro ao executar: {e}")
+
+
     def handle_stand(self):
         direction = self.direction_combo.currentText()
         x, y, z = self.reader.get_position()
@@ -272,6 +308,7 @@ class CavebotHUD(QMainWindow):
                     action = item.text() if item is not None else ""
 
 
+                    script = self.script_textedit.toPlainText() if item_type.lower() == "action" else ""
                     path.append({
                         "x": x,
                         "y": y,
@@ -279,7 +316,8 @@ class CavebotHUD(QMainWindow):
                         "type": item_type,
                         "label": label,
                         "range": range_val,
-                        "action": action
+                        "action": action,
+                        "script": script
                     })
                 except Exception as e:
                     print(f"Erro ao ler linha {i}: {e}")
