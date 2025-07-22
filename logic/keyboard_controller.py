@@ -74,14 +74,51 @@ def get_direction(curr_x, curr_y, target_x, target_y):
 
     return None
 
+# def send_text(text: str):
+#     for char in text:
+#         win32api.PostMessage(game, win32con.WM_CHAR, ord(char), 0)
+#     scan_code = win32api.MapVirtualKey(win32con.VK_RETURN, 0)
+#     lParam_down = 1 | (scan_code << 16)
+#     lParam_up = lParam_down | (1 << 30) | (1 << 31)
+#     win32api.PostMessage(game, win32con.WM_KEYDOWN, win32con.VK_RETURN, lParam_down)
+#     win32api.PostMessage(game, win32con.WM_KEYUP, win32con.VK_RETURN, lParam_up)
+#     time.sleep(0.1)
+
+# def press_enter(hwnd):
+#     scan_code = win32api.MapVirtualKey(win32con.VK_RETURN, 0)
+#     lParam_down = 1 | (scan_code << 16)
+#     lParam_up = 1 | (scan_code << 16) | (1 << 30) | (1 << 31)
+#     win32api.PostMessage(hwnd, win32con.WM_KEYDOWN, win32con.VK_RETURN, lParam_down)
+#     win32api.PostMessage(hwnd, win32con.WM_KEYUP, win32con.VK_RETURN, lParam_up)
+
 def send_text(text: str):
+    import win32api
+    import win32con
+    from core.Addresses import game
+    import time
+
+    def press_enter():
+        scan_code = win32api.MapVirtualKey(win32con.VK_RETURN, 0)
+        lParam_down = 1 | (scan_code << 16)
+        lParam_up = lParam_down | (1 << 30) | (1 << 31)
+        win32api.PostMessage(game, win32con.WM_KEYDOWN, win32con.VK_RETURN, lParam_down)
+        win32api.PostMessage(game, win32con.WM_KEYUP, win32con.VK_RETURN, lParam_up)
+        time.sleep(0.1)
+
+    # Abrir o chat
+    press_enter()
+    time.sleep(0.05)
+
+    # Digitar caractere por caractere
     for char in text:
         win32api.PostMessage(game, win32con.WM_CHAR, ord(char), 0)
-    scan_code = win32api.MapVirtualKey(win32con.VK_RETURN, 0)
-    lParam_down = 1 | (scan_code << 16)
-    lParam_up = lParam_down | (1 << 30) | (1 << 31)
-    win32api.PostMessage(game, win32con.WM_KEYDOWN, win32con.VK_RETURN, lParam_down)
-    win32api.PostMessage(game, win32con.WM_KEYUP, win32con.VK_RETURN, lParam_up)
+        time.sleep(0.02)  # delay entre caracteres
+
+    time.sleep(0.05)
+
+    # Enviar mensagem
+    press_enter()
     time.sleep(0.1)
+
 
 __all__ = ['walk', 'hold_key', 'release_all_keys', 'get_direction', 'send_text']

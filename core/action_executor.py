@@ -58,10 +58,15 @@ def handle_action(commands: list[str], reader=None):
             continue
 
         if cmd.startswith("say("):
-            text = re.findall(r"say\(['\"](.+?)['\"]\)", cmd)
+            text = re.findall(r"say\(['\"](.*?)['\"]\)", cmd)
             if text:
-                send_text(text[0])
-                QThread.msleep(100)
+                press_enter()
+                time.sleep(0.05)
+                for c in text[0]:
+                    send_char(c)
+                    time.sleep(0.01)
+                press_enter()
+                time.sleep(0.05)
 
         elif cmd.startswith("wait("):
             delay = re.findall(r"wait\((\d+)\)", cmd)
@@ -78,9 +83,13 @@ def handle_action(commands: list[str], reader=None):
             parts = cmd.split()
             if len(parts) >= 2:
                 text = " ".join(parts[1:]).replace("'", "")
+                press_enter()
+                time.sleep(0.05)
                 for c in text:
                     send_char(c)
+                    time.sleep(0.01)
                 press_enter()
+                time.sleep(0.05)
 
         elif cmd.startswith("wait"):
             parts = cmd.split()
