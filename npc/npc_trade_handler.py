@@ -1,67 +1,63 @@
-# npc/npc_trade_handler.py
-
+import time
 import win32gui
 import win32con
 import win32api
-import time
-import pyautogui
 
-# Função base para detectar a janela do cliente
+def find_client_window(title_prefix='RubinOT Client'):
+    def enum_handler(hwnd, result):
+        if win32gui.IsWindowVisible(hwnd):
+            title = win32gui.GetWindowText(hwnd)
+            if title.startswith(title_prefix):
+                result.append(hwnd)
 
-def get_client_rect(window_name='RubinOT Client - Vayler'):
-    hwnd = win32gui.FindWindow(None, window_name)
-    if hwnd:
-        rect = win32gui.GetWindowRect(hwnd)
-        return hwnd, rect
-    return None, None
+    results = []
+    win32gui.EnumWindows(enum_handler, results)
+    return results[0] if results else None
 
-# Simula click relativo ao client
-
-def click_relative(hwnd, offset_x, offset_y):
-    left, top, _, _ = win32gui.GetWindowRect(hwnd)
-    abs_x = left + offset_x
-    abs_y = top + offset_y
-    pyautogui.click(abs_x, abs_y)
-
-# Digita texto com ENTER no final
-
-def send_text_hwnd(hwnd, text):
-    for c in text:
-        win32api.PostMessage(hwnd, win32con.WM_CHAR, ord(c), 0)
-        time.sleep(0.01)
-    # ENTER
-    scan = win32api.MapVirtualKey(win32con.VK_RETURN, 0)
-    lParam_down = 1 | (scan << 16)
-    lParam_up = 1 | (scan << 16) | (1 << 30) | (1 << 31)
-    win32api.PostMessage(hwnd, win32con.WM_KEYDOWN, win32con.VK_RETURN, lParam_down)
-    win32api.PostMessage(hwnd, win32con.WM_KEYUP, win32con.VK_RETURN, lParam_up)
-
-# Processo de compra no NPC Trade
-
-def buy_item_from_npc(item_name, quantity):
-    hwnd, rect = get_client_rect()
+def get_client_rect():
+    hwnd = find_client_window()
     if not hwnd:
-        print("[NPC] Cliente não encontrado.")
-        return
+        raise Exception("Janela do cliente não encontrada.")
+    return win32gui.GetWindowRect(hwnd), hwnd
 
-    print("[NPC] Interagindo com janela...")
+def click(hwnd, x, y):
+    lParam = win32api.MAKELONG(x, y)
+    win32api.PostMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, lParam)
+    time.sleep(0.05)
+    win32api.PostMessage(hwnd, win32con.WM_LBUTTONUP, None, lParam)
 
-    # Exemplo: clicar em "Type to search"
-    click_relative(hwnd, 230, 100)
-    time.sleep(0.2)
-    send_text_hwnd(hwnd, item_name)
+def send_text(hwnd, text):
+    for char in text:
+        win32api.PostMessage(hwnd, win32con.WM_CHAR, ord(char), 0)
+        time.sleep(0.01)
 
+def buy_item_from_npc(item_name="mana potion", amount=100):
+    rect, hwnd = get_client_rect()
+
+    # Valores de exemplo, ajustar conforme teste real
+    search_x, search_y = 150, 160  # campo "Type to search"
+    item_x, item_y = 150, 200      # item na lista
+    amount_x, amount_y = 90, 300   # campo Amount
+    ok_x, ok_y = 210, 360          # botão Buy
+
+    # Etapa 1: clicar no campo de busca
+    click(hwnd, search_x, search_y)
+    time.sleep(0.1)
+    send_text(hwnd, item_name)
     time.sleep(0.5)
-    # Exemplo: clicar no item listado (precisa ajustar para seu client)
-    click_relative(hwnd, 230, 140)
 
-    time.sleep(0.2)
-    # Clicar no campo "Amount"
-    click_relative(hwnd, 100, 260)
-    time.sleep(0.2)
-    send_text_hwnd(hwnd, str(quantity))
+    # Etapa 2: clicar no item
+    click(hwnd, item_x, item_y)
+    time.sleep(0.1)
 
+    # Etapa 3: digitar quantidade
+    click(hwnd, amount_x, amount_y)
+    time.sleep(0.1)
+    send_text(hwnd, str(amount))
+    time.sleep(0.1)
+
+    # Etapa 4: clicar no botão Buy
+    click(hwnd, ok_x, ok_y)
     time.sleep(0.2)
-    # Clicar no botão "Buy"
-    click_relative(hwnd, 220, 260)
-    print(f"[NPC] Tentando comprar {quantity}x {item_name}")
+
+    print(f"[NPC] 🛒 Tentando comprar {amount}x {item_name}")
